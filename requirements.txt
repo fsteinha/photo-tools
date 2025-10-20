@@ -1,0 +1,6 @@
+imagehash
+argcomplete
+argparse
+Pillow
+sqlite3
+Logger
