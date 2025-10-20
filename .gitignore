@@ -1,3 +1,5 @@
 database.db
 .cpig_config.json
+cpig_database.db
+hot-config.json
 __pycache__

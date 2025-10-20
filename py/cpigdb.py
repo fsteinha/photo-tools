@@ -16,6 +16,7 @@ class CPigDb:
     ERROR_DATABASE_INTEGRITY = "ERROR_DATABASE_INTEGRITY"
     ERROR_UNREGISTERED_FILES = "ERROR_UNREGISTERED_FILES"
     ERROR_FILES_LOST = "ERROR_FILES_LOST"
+    ERROR_DOUBLE_FILES = "ERROR_DOUBLE_FILES"
     
     def __init__(self, file_name: str):
         self.file_name = file_name
@@ -29,7 +30,8 @@ class CPigDb:
             self.ERROR_DB_FILE: None,
             self.ERROR_DATABASE_INTEGRITY: None,
             self.ERROR_UNREGISTERED_FILES: None,
-            self.ERROR_FILES_LOST: None
+            self.ERROR_FILES_LOST: None,
+            self.ERROR_DOUBLE_FILES: None
         }
 
     def create_database(self):
@@ -145,6 +147,33 @@ class CPigDb:
             self.__set_error__(self.ERROR_DATABASE_INTEGRITY)
         return stats
 
+    def find_photo_by_md5(self, md5_hash: str) -> List[Tuple[str, str]]:
+        """Findet Fotos basierend auf dem MD5-Hash."""
+        results = []
+        try:
+            with sqlite3.connect(self.file_name) as conn:
+                cursor = conn.execute(f'''
+                    SELECT {self.KEY_PATH}, {self.KEY_IMAGE}
+                    FROM images
+                    WHERE {self.KEY_MD5}=?
+                ''', (md5_hash,))
+                results = cursor.fetchall()
+        except sqlite3.DatabaseError:
+            self.__set_error__(self.ERROR_DATABASE_INTEGRITY)
+        return results
+    
+    def is_image_in_db_by_md5(self, md5_hash: str) -> bool:
+        """Prüft, ob ein Bild mit dem gegebenen MD5-Hash in der Datenbank vorhanden ist."""
+        try:
+            with sqlite3.connect(self.file_name) as conn:
+                cursor = conn.execute(f'''
+                    SELECT 1 FROM images WHERE {self.KEY_MD5}=? LIMIT 1;
+                ''', (md5_hash,))
+                return cursor.fetchone() is not None
+        except sqlite3.DatabaseError:
+            self.__set_error__(self.ERROR_DATABASE_INTEGRITY)
+            return False
+        
     def find_doubles_by_md5(self) -> list:
         """Findet doppelte Einträge basierend auf dem MD5-Hash."""
         doubles = []
@@ -167,7 +196,7 @@ class CPigDb:
         except sqlite3.DatabaseError:
             self.__set_error__(self.ERROR_DATABASE_INTEGRITY)
         return doubles
-        
+    
     def get_unregistered_files(self) -> list:
         """Gibt eine Liste der unregistrierten Dateien zurück."""
         return self.unregistered_files
@@ -200,12 +229,17 @@ class CPigDb:
             sql+=")"
             self.conn.execute(sql)
             
-    def insert_image(self, md5_hash: str, image_hash: str, path: str):
+    def insert_image(self, md5_hash: str, image_hash: str, path: str, b_check_exists: bool = True) -> bool:
+        if b_check_exists:
+            if self.is_image_in_db_by_md5(md5_hash):
+                self.__set_error__(self.ERROR_DOUBLE_FILES)
+                return False
         with self.conn:
             self.conn.execute(f'''
                 INSERT OR IGNORE INTO images ({self.KEY_MD5}, {self.KEY_IMAGE}, {self.KEY_PATH})
                 VALUES (?, ?, ?)
             ''', (md5_hash, image_hash, path))
+        return True
 
     def update_hashes(self, path: str, md5_hash: str = None, image_hash: str = None):
         """Setzt nachträglich md5 und/oder image hash für einen gegebenen Pfad."""
