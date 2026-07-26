@@ -12,20 +12,11 @@
 import json
 import os
 import argparse
+import argcomplete
 from typing import Optional
+from lib.csingleton import CSingletonMeta
 
-# Singleton metaclass for Config
-class _SingletonMeta(type):
-    _instances = {}
-
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            # create the instance the first time
-            cls._instances[cls] = super().__call__(*args, **kwargs)
-        return cls._instances[cls]
-
-
-class Config(metaclass=_SingletonMeta):
+class Config(metaclass = CSingletonMeta):
     KEY_DB_PATH = "db_path"
     KEY_IMAGE_EXTENSIONS = "image_extensions"
     VAL_DEFAULT_CONFIG_PATH = "./.cpig_config.json"
@@ -51,7 +42,8 @@ class Config(metaclass=_SingletonMeta):
 
     def make_default_config(self) -> None:
         """Create default configuration."""
-        self.path_to_cfg = self.VAL_DEFAULT_CONFIG_PATH
+        if self.path_to_cfg is None:
+            self.path_to_cfg = self.VAL_DEFAULT_CONFIG_PATH
         self.db_path = self.VAL_DEFAULT_DB_PATH
         self.image_extensions = self.VAL_DEFAULT_IMAGE_EXTENSIONS
         self.settings = {
@@ -77,11 +69,13 @@ class Config(metaclass=_SingletonMeta):
             self.path_to_cfg = path2config
 
         if not os.path.exists(self.path_to_cfg):
+            print(f"Configuration file {self.path_to_cfg} not found.")
             return False
         try:
             with open(self.path_to_cfg, 'r') as config_file:
                 self.settings = json.load(config_file)
         except (json.JSONDecodeError, IOError):
+            print(f"Error loading configuration from {self.path_to_cfg}.")
             return False
 
         if not self.check_config():
@@ -110,9 +104,10 @@ class Config(metaclass=_SingletonMeta):
                 
     def print_config(self) -> None:
         """Print current configuration to console."""
-        print (f"path_to_cfg: {self.path_to_cfg}")
-        print (f"db_path: {self.db_path}")
-        print (f"image_extensions: {self.image_extensions}")
+        print("Current Configuration:")
+        print (f"   path_to_cfg: {self.path_to_cfg}")
+        print (f"   db_path: {self.db_path}")
+        print (f"   image_extensions: {self.image_extensions}")
 
     # Getter Methods
     def get_db_path(self) -> str:
@@ -124,29 +119,38 @@ class Config(metaclass=_SingletonMeta):
         return self.image_extensions
 
 # Script entry point
-
 def main():
-    args = get_args()
+    '''Configuration script for Photo Tools application.'''
+    args = parse_args()
     
-    if args.make_default:
+    if args.create:
+        print(f"Creating default configuration {args.config}...")
         config = Config(args.config)
         config.make_default_config()
+        if args.db_path:
+            print(f"Setting database path {args.db_path}...")
+            config.db_path = args.db_path
         config.save_config()
+        config.print_config()
         exit(0)
     
-    if args.config:
+    if args.config: 
+        print(f"Loading configuration from {args.config}...")   
         config = Config(args.config)
         config.print_config()
-    else:
-        print (f"Make default config {Config.VAL_DEFAULT_CONFIG_PATH}")
-        config = Config()
-        config.save_config()
-        config.print_config()
+        exit(0)
+    
+    print("No action specified. Use --config and/or --make_default with --db-path.")
             
-def get_args():
+def parse_args():
+    '''Parse command line arguments for configuration script.'''
     parser = argparse.ArgumentParser(description="Photo Tools Configuration")
-    parser.add_argument('--config', type=str, help='Path to configuration file')
-    parser.add_argument('--make_default', action='store_true', help='Create default configuration file')
+    parser.add_argument('--config', default=Config.VAL_DEFAULT_CONFIG_PATH, type=str, help='Patfh to configuration file (default: %(default)s)')
+    parser.add_argument('--create', action='store_true', help='Create default configuration file')
+    parser.add_argument("--db-path", help="Path to the database file.")
+
+    argcomplete.autocomplete(parser)
+
     return parser.parse_args()
     
 if __name__ == "__main__":

@@ -1,14 +1,11 @@
 #!/usr/bin/python3
 
 import argparse
-import subprocess
-import hashlib
-import os
 from pathlib import Path
-import shutil
-from PIL import Image
-import imagehash
+irom PIL import Image
 from CPigDb import CPigDb
+
+from add_image import add_image
 
 # main function
 def main():
@@ -42,48 +39,15 @@ def gen_hashes(target_dir, hash_file="hashes.db"):
     total = len(all_files)
     count = 0
 
-    if shutil.which("md5sum"):
-        compute_md5 = compute_md5_md5sum
-    else:
-        compute_md5 = compute_md5_python
-
     for file_path in all_files:
-        md5_hash = compute_md5(file_path)       
-        #check if image
-        try:
-            image_hash = imagehash.phash(Image.open(file_path))    
-        except:
-            image_hash = None
-            
-        rel_path = file_path.relative_to(target_dir)
-        db.insert_image(md5_hash, str(image_hash), str(rel_path))
+        if add_image(db, file_path, target_dir) is False:
+            print(f"Error processing file: {file_path}")
+            continue
         count += 1
         percent = int((count / total) * 100)
         print(f"Progress: {percent}% ({count}/{total})", end='\r')
 
     print(f"\nHashes saved to: {hash_file}")
-
-# md5 checksum with extern tool
-def compute_md5_md5sum(file_path):
-    try:
-        result = subprocess.run(
-            ["md5sum", str(file_path)],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        return result.stdout.split()[0]
-    except subprocess.CalledProcessError as e:
-        print(f"Error hashing {file_path}: {e}")
-        return None
-
-# md5 checksum with python    
-def compute_md5_python(file_path):
-    hash_md5 = hashlib.md5()
-    with open(file_path, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            hash_md5.update(chunk)
-    return hash_md5.hexdigest()
 
 # helper all files in tree
 def get_all_files(target_dir):
