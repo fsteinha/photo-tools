@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "photo-tools"
+version = "0.1.0"
+description = "Photo tools CLI utilities"
+requires-python = ">=3.9"
+dependencies = [
+  "argcomplete",
+  "imagehash",
+  "Pillow",
+]
+
+[project.scripts]
+photo-add-image = "add_image:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+py-modules = ["add_image", "consistence_check", "create_db", "gen_hashes", "sortin"]
+packages = ["lib"]
